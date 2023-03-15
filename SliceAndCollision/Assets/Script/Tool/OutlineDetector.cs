@@ -69,7 +69,7 @@ namespace Babeltime.Utils
             public int x = 0;   //in pixel idx 
             public int y = 0;
 
-            public bool CrossPointVisited = false;
+            public bool CrossPointVisited = false; 
 
             public void Reinit(CellType aType, int aPixelX, int aPixelY)
             {
@@ -90,7 +90,8 @@ namespace Babeltime.Utils
             public int texWidth = 0;
             public int texHeight = 0;
             public Cell[,] mTable;
-            public CrossDir lastCross; //上一个确认过的轮廓点处于当前田字测试的哪个方位(记得及时刷新) 
+            public CrossDir lastCrossDir; //上一个确认过的轮廓点处于当前田字测试的哪个方位(记得及时刷新) 
+            public Cell nestCross;
 
             public List<Cell> History = new List<Cell>();
             public List<Cell> SamplePoint = new List<Cell>();
@@ -107,7 +108,8 @@ namespace Babeltime.Utils
 
             }
 
-            //输入十字中心点对应的Cell位置(中心点左下角那个Cell) 
+            //输入参数: 十字中心轮廓点对应的Cell位置(中心点左下角那个Cell) 
+            //输出: 参考下图的田字区域 
             //  1 | 2
             // --------
             //  0 | 3
@@ -136,7 +138,7 @@ namespace Babeltime.Utils
                 return mTable[aX, aY];
             }
 
-            public void AddCell(Cell aCell)
+            public void RegisterHistoryCell(Cell aCell)
             {
                 History.Add(aCell);
             }
@@ -155,18 +157,24 @@ namespace Babeltime.Utils
 
             public void Dispose()
             {
+                int y = texHeight - 1;
+                if (History.Count > 0)
+                    y = History[0].y + 1; //需要多1层，鉴于Out类型的Cell会出现在FirstCell的上面 
                 History.Clear();
                 SamplePoint.Clear();
-                for (int i = 0; i < mTable.GetLength(0); i++)
+                for (; y >= 0; y--)
                 {
-                    for (int j = 0; j < mTable.GetLength(1); i++)
+                    bool find = false;
+                    for (int x = 0; x < texWidth; x++)
                     {
-                        if (mTable[i,j] != null)
+                        if (mTable[x,y] != null)
                         {
-                            CellPool.Restore(mTable[i, j]);
-                            mTable[i, j] = null;
+                            CellPool.Restore(mTable[x, y]);
+                            mTable[x, y] = null;
+                            find = true;
                         }
                     }
+                    if (!find) break;
                 }
                 texWidth = 0; texHeight = 0; 
                 texture = null;
@@ -182,6 +190,7 @@ namespace Babeltime.Utils
             }
             ctx = new Context();
             ctx.init(aTex);
+
         }
 
         public enum FSM
@@ -202,20 +211,52 @@ namespace Babeltime.Utils
             if (aCtx == null || aCtx.texWidth <= 0)
                 return FSM.Error;
 
-            for (int y = aCtx.texHeight - 1; y >= 0; y--)
+            const int minDelta = 5;  //5行一跳 
+
+            int y = aCtx.texHeight - 2; int x = 0;
+            bool find = false;
+            for ( ; y >= 0; y-= minDelta)
             {
-                for (int x = 0; x < aCtx.texWidth; x++)
+                for (x = 1; x < aCtx.texWidth; x++)
                 {
                     if (aCtx.texture.GetPixel(x, y).a >= 1)
                     {
-                        //find first cell 
-                        var cell = CellPool.Get();
-                        cell.Reinit(CellType.In, x, y);
-                        aCtx.AddCell(cell);
-                        return FSM.FirstPoint;
+                        find = true;
+                    }
+                    if (find) break;
+                }
+                if (find) break;
+            }
+
+            if (!find) return FSM.Error;
+
+            while(find && ++y < aCtx.texHeight)
+            {
+                find = false;
+                for (x = 0; x < aCtx.texWidth; x++)
+                {
+                    if (aCtx.texture.GetPixel(x, y).a >= 1)
+                    {
+                        find = true;
+                        break;
                     }
                 }
             }
+
+            y--;
+
+            for (x = 0; x < aCtx.texWidth; x++)
+            {
+                if (aCtx.texture.GetPixel(x, y).a >= 1)
+                {
+                    //find and init first cell 
+                    var cell = CellPool.Get();
+                    cell.Reinit(CellType.In, x, y);
+                    aCtx.RegisterHistoryCell(cell);
+                    return FSM.FirstPoint;
+                }
+            }
+            
             Debug.LogError("Unable to find In cells");
             return FSM.Error;
         }
@@ -228,8 +269,17 @@ namespace Babeltime.Utils
                 return FSM.Error;
             aCtx.RegisterSamplePoint(firstCell); //第一个点一定作为采样点输出 
 
-            //再研究十字区域内的情况，给出下一步跳转状态的决策 
-            
+            //标记firstCell左下和左上2个轮廓点 
+            var leftCell = aCtx.GetOrInitCellAt(firstCell.x - 1, firstCell.y); //左上的轮廓点对应左侧Cell
+            if (leftCell != null) leftCell.CrossPointVisited = true;
+            var leftDownCell = aCtx.GetOrInitCellAt(firstCell.x - 1, firstCell.y - 1); //左下轮廓点对应左下Cell 
+            if (leftDownCell != null) leftDownCell.CrossPointVisited = true;
+
+            //为下一轮迭代准备 
+            aCtx.lastCrossDir = CrossDir.Left; //因为下一轮必然右移一格田字格 
+
+            //确定下一个轮廓点中心点 
+            aCtx.nestCross = firstCell; //意味着当前Cell右上角的轮廓点是下一次迭代的田字中心点 
 
             return FSM.Error;
         }
