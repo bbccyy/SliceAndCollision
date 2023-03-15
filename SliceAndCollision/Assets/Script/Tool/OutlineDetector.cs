@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using static Babeltime.Utils.OutlineDetector;
 
 namespace Babeltime.Utils
 {
@@ -91,7 +92,7 @@ namespace Babeltime.Utils
             public int texHeight = 0;
             public Cell[,] mTable;
             public CrossDir lastCrossDir; //上一个确认过的轮廓点处于当前田字测试的哪个方位(记得及时刷新) 
-            public Cell nestCross;
+            public Cell nextCross;
 
             public List<Cell> History = new List<Cell>();
             public List<Cell> SamplePoint = new List<Cell>();
@@ -105,6 +106,7 @@ namespace Babeltime.Utils
                 texHeight = tex.height;
                 mTable = new Cell[texWidth, texHeight];
                 History.Clear();
+                nextCross = null;
 
             }
 
@@ -137,24 +139,20 @@ namespace Babeltime.Utils
 
                 return mTable[aX, aY];
             }
-
             public void RegisterHistoryCell(Cell aCell)
             {
-                History.Add(aCell);
+                History.Add(aCell);  //History主要为了Debug用 
             }
-
             public void RegisterSamplePoint(Cell aCell)
             {
                 SamplePoint.Add(aCell);
             }
-
             public Cell GetFirstCell()
             {
                 if (History.Count == 0)
                     return null;
                 return History[0];
             }
-
             public void Dispose()
             {
                 int y = texHeight - 1;
@@ -178,6 +176,7 @@ namespace Babeltime.Utils
                 }
                 texWidth = 0; texHeight = 0; 
                 texture = null;
+                nextCross = null;
             }
 
         }
@@ -252,7 +251,7 @@ namespace Babeltime.Utils
                     //find and init first cell 
                     var cell = CellPool.Get();
                     cell.Reinit(CellType.In, x, y);
-                    aCtx.RegisterHistoryCell(cell);
+                    aCtx.nextCross = cell;
                     return FSM.FirstPoint;
                 }
             }
@@ -263,11 +262,13 @@ namespace Babeltime.Utils
 
         public FSM FirstPoint(Context aCtx)
         {
-            //先处理采样点输出 
-            var firstCell = aCtx.GetFirstCell();
+            //先获取目标点，这个点应该是第一个Cell 
+            var firstCell = aCtx.nextCross;
             if (firstCell == null)
                 return FSM.Error;
-            aCtx.RegisterSamplePoint(firstCell); //第一个点一定作为采样点输出 
+
+            aCtx.RegisterHistoryCell(firstCell); //入库，Debug用 
+            aCtx.RegisterSamplePoint(firstCell); //第一个Cell一定作为采样点输出 
 
             //标记firstCell左下和左上2个轮廓点 
             var leftCell = aCtx.GetOrInitCellAt(firstCell.x - 1, firstCell.y); //左上的轮廓点对应左侧Cell
@@ -279,7 +280,7 @@ namespace Babeltime.Utils
             aCtx.lastCrossDir = CrossDir.Left; //因为下一轮必然右移一格田字格 
 
             //确定下一个轮廓点中心点 
-            aCtx.nestCross = firstCell; //意味着当前Cell右上角的轮廓点是下一次迭代的田字中心点 
+            aCtx.nextCross = firstCell; //意味着当前Cell右上角的轮廓点是下一次迭代的田字中心点 
 
             return FSM.Error;
         }
