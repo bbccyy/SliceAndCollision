@@ -40,6 +40,16 @@ namespace Babeltime.Utils
             _Ct = 4
         }
 
+        public enum CrossDir  //田字中的十字端点(代表轮廓点方位) 
+        {
+            Undifined = 0,
+
+            Left = 1,
+            Right = 2,
+            Up = 3,
+            Down = 4,
+        }
+
         //对应田字中 LeftDown，LeftUp，RightUp，RightDown 对应像素位置XY偏移值
         public static List<Tuple<int, int>> FourDirOffsetLUT = new List<Tuple<int, int>>() {
             new Tuple<int, int>(0,0), new Tuple<int, int>(0,1), 
@@ -58,7 +68,9 @@ namespace Babeltime.Utils
             public CellType type = CellType.Undefine; 
             public int x = 0;   //in pixel idx 
             public int y = 0;
-           
+
+            public bool CrossPointVisited = false;
+
             public void Reinit(CellType aType, int aPixelX, int aPixelY)
             {
                 type = aType; x = aPixelX; y = aPixelY;
@@ -68,6 +80,7 @@ namespace Babeltime.Utils
             {
                 type = CellType.Undefine;
                 x = 0; y = 0;
+                CrossPointVisited = false;
             }
         }
 
@@ -77,6 +90,7 @@ namespace Babeltime.Utils
             public int texWidth = 0;
             public int texHeight = 0;
             public Cell[,] mTable;
+            public CrossDir lastCross; //上一个确认过的轮廓点处于当前田字测试的哪个方位(记得及时刷新) 
 
             public List<Cell> History = new List<Cell>();
             public List<Cell> SamplePoint = new List<Cell>();
@@ -93,13 +107,18 @@ namespace Babeltime.Utils
 
             }
 
-            public void FillUpWorkingFour(int aCurX, int aCurY)
+            //输入十字中心点对应的Cell位置(中心点左下角那个Cell) 
+            //  1 | 2
+            // --------
+            //  0 | 3
+            public void FillUpWorkingFour(int aCellX, int aCellY)
             {
                 foreach(FourDir dir in Enum.GetValues(typeof(FourDir)))
                 {
                     if (dir == FourDir._Ct) continue;
                     var offset = FourDirOffsetLUT[((int)dir)];
-
+                    var cell = GetOrInitCellAt(aCellX + offset.Item1, aCellY + offset.Item2);
+                    WorkingFour[(int)dir] = cell;  //cell may be null 
                 }
             }
             public Cell GetOrInitCellAt(int aX, int aY)
