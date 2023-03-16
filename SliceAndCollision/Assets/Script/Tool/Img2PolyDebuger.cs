@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Babeltime.Utils
 {
-    [ExecuteInEditMode]
+    //[ExecuteInEditMode]
     public class Img2PolyDebuger : MonoBehaviour
     {
         // Start is called before the first frame update
@@ -16,11 +16,12 @@ namespace Babeltime.Utils
         // Update is called once per frame
         void Update()
         {
-            var data = Img2PolyParser.Instance.data;
+            var datas = Img2PolyParser.Instance.datas;
 
-            if (data != null)
+            if (datas != null)
             {
-                DrawLine(data);
+                foreach(var data in datas)
+                    DrawLine(data);
             }
             Debug.DrawLine(new Vector3(1,0,0), new Vector3(-1,0,0), Color.red);
         }
@@ -29,11 +30,11 @@ namespace Babeltime.Utils
         {
             if (aPoint.Count == 0) return;
 
-            for (int i = 0; i < aPoint.Count-1; i+=2)
+            for (int i = 0; i < aPoint.Count-1; i++)
             {
                 var p1 = aPoint[i];
                 var p2 = aPoint[i+1];
-                Debug.DrawLine(p1, p2, Color.red);
+                Debug.DrawLine(p1, p2, i %2 == 0 ?Color.red : Color.yellow);
             }
 
             Debug.DrawLine(aPoint[aPoint.Count-1], aPoint[0], Color.red);

@@ -14,18 +14,28 @@ namespace Babeltime.Utils
             List<Vector3> loopInputs = aInput;
             List<Vector3> loopOutputs = null;
             int offset = Random.Range(0, 2);  //0 or 1 
+            offset = 0;
+            int ct = 0;
             while (TryConbineOnce(in loopInputs, out loopOutputs, offset))
             {
-                offset = Random.Range(0, 2);
+                ct++;
+                //offset = Random.Range(0, 2);
                 loopInputs = loopOutputs;
                 loopOutputs = null;
             }
 
             aOutput = loopOutputs == null ? aInput : loopOutputs;
+
+            Debug.LogWarning($"data size = {aOutput.Count}, ct = {ct}, orign size = {aInput.Count}");
         }
 
         private static bool TryConbineOnce(in List<Vector3> aInput, out List<Vector3> aOutput, int aOffset)
         {
+            if (aInput.Count <= 100)
+            {
+                aOutput = aInput;
+                return false;
+            }
             aOutput = new List<Vector3>();
             bool hasChg = false;
             for (int i = aOffset; i < aInput.Count - 2; i += 3)
@@ -38,6 +48,12 @@ namespace Babeltime.Utils
                     aOutput.Add(aInput[i]); 
                     aOutput.Add(aInput[i+2]);
                     hasChg = true;
+                }
+                else
+                {
+                    aOutput.Add(aInput[i]);
+                    aOutput.Add(aInput[i+1]);
+                    aOutput.Add(aInput[i+2]);
                 }
             }
             return hasChg;
