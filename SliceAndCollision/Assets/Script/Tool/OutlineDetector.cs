@@ -14,6 +14,10 @@ namespace Babeltime.Utils
 
         public static int seqBentSeqThreshold = 5; //判断是否构成“直线”->“外折”->“直线”的直线长度(像素个数) 
 
+        public static Vector3 MeshRoot = Vector3.zero;
+
+        public const int SafeLoopingNum = 100000;
+
         private static float onePixelSize = 0;
         public static float OnePixelSize { 
             get {
@@ -128,6 +132,8 @@ namespace Babeltime.Utils
                 public void Recycle() { keyCell = null; }
             }
 
+            public List<Vector3> PolygonOutlines = new List<Vector3>();
+
             public Queue<OutlineTracker> queue = new Queue<OutlineTracker>();
 
             public Texture2D texture;
@@ -150,6 +156,9 @@ namespace Babeltime.Utils
                 mTable = new Cell[texWidth, texHeight];
                 History.Clear();
                 queue.Clear();
+                PolygonOutlines.Clear();
+                WorkingFour.Clear();
+                SamplePoint.Clear();
                 nextCross = null;
 
             }
@@ -217,8 +226,9 @@ namespace Babeltime.Utils
                 return mTable[aX, aY];
             }
             public void RegisterHistoryCell(Cell aCell)
-            {
-                History.Add(aCell);  //History主要为了Debug用 
+            {   //History用于追踪上一个访问过的点，同时标记访问状态，最后也可Debug用 
+                History.Add(aCell);
+                aCell.CrossPointVisited = true;
             }
             public void RegisterSamplePoint(Cell aCell)
             {
@@ -268,7 +278,8 @@ namespace Babeltime.Utils
                     y = History[0].y + 1; //需要多1层，鉴于Out类型的Cell会出现在FirstCell的上面 
                 History.Clear();
                 SamplePoint.Clear();
-                queue.Clear();
+                PolygonOutlines.Clear();
+                WorkingFour.Clear();
                 for (; y >= 0; y--)
                 {
                     bool find = false;
@@ -286,6 +297,12 @@ namespace Babeltime.Utils
                 texWidth = 0; texHeight = 0; 
                 texture = null;
                 nextCross = null;
+
+                foreach(var elm in queue)
+                {
+                    OutlineTrakerPool.Restore(elm);
+                }
+                queue.Clear();
             }
 
         }
@@ -545,10 +562,57 @@ namespace Babeltime.Utils
             }
             if (OutCellDir == FourDir._Ct) { Debug.Log("ThreeInFour err"); return FSM.Error; }
 
+            //确定下一个移动方向 
+            var sub_lut = OneInFourLUT[OutCellDir];
+            if (sub_lut == null) { Debug.Log("ThreeInFour err"); return FSM.Error; }
+            var nextDir = sub_lut[aCtx.lastCrossDir];
+            if (nextDir == CrossDir.Undifined) { Debug.Log("ThreeInFour err"); return FSM.Error; }
 
+            //确定未访问的InCell位置 
+            Cell InCell = null;  //要找的点 
+            Cell lastHistoryCell = aCtx.History[aCtx.History.Count - 1]; //访问过的点 
+            Cell cornerCell = aCtx.WorkingFour[(int)CrossOppDirLUT[OutCellDir]]; //OutCell的对面那点 
+            foreach (FourDir dir in dirArray)
+            {
+                if (dir == FourDir._Ct) continue;
+                InCell = aCtx.WorkingFour[(int)dir];
+                if (InCell == null) continue;
+                if (InCell.type == CellType.In && 
+                    InCell != lastHistoryCell && 
+                    InCell != cornerCell)  
+                {
+                    break; //find it! 
+                }
+                InCell = null;
+            }
+            if (InCell == null) { Debug.Log("ThreeInFour err"); return FSM.Error; }
 
+            //重置上轮参数 
+            aCtx.UpdateNextWorkingFourParams(nextDir);
+
+            //更新轮廓线追踪状态(调用内部可能会触发输出采样)
+            aCtx.UpdateTracker(OutlineState.OutterBent, InCell); 
+
+            //注册访问过的Cell
+            aCtx.RegisterHistoryCell(InCell);
 
             return FSM.CalFour;
+        }
+
+        public FSM MeetEnd(Context aCtx)
+        {
+            foreach (var cell in aCtx.SamplePoint)
+            {
+                Vector3 curPos = new Vector3(
+                    (float)cell.x * OnePixelSize + MeshRoot.x,
+                    (float)cell.y * OnePixelSize + MeshRoot.y,
+                    0 + MeshRoot.z
+                    );
+
+                aCtx.PolygonOutlines.Add(curPos);
+            }
+
+            return FSM.Done;
         }
 
         public void Detect()
@@ -556,8 +620,10 @@ namespace Babeltime.Utils
             if (ctx == null) return;
 
             var currentState = FSM.Init;
+            int loopingCount = 0;
 
-            while (currentState != FSM.Done || currentState != FSM.Error)
+            while (loopingCount < SafeLoopingNum && 
+                    (currentState != FSM.Done || currentState != FSM.Error))
             {
                 switch(currentState)
                 {
@@ -577,14 +643,24 @@ namespace Babeltime.Utils
                         currentState= TwoInFour(ctx);
                         break;
                     case FSM.ThreeInFour:
+                        currentState = ThreeInFour(ctx);
+                        break;
+                    case FSM.MeetEnd:
+                        currentState = MeetEnd(ctx);
                         break;
                     default:
                         Debug.LogError("Unknown FSM State");
                         return;
                 }
+                loopingCount++;
             }
 
+            if (loopingCount >= SafeLoopingNum)
+            {
+                Debug.LogError("Over Looping!");
+            }
 
+            return;
         }
 
 
