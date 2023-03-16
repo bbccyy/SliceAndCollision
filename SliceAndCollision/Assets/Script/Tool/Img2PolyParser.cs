@@ -34,7 +34,8 @@ namespace Babeltime.Utils
                 {
                     flag = false;
                     works.Add(new OutlineDetector());
-                    works[works.Count-1].EatTexture(tex);
+                    works[works.Count - 1].EatTexture(tex);
+                    works[works.Count - 1].Detect();
                 }
                 
             }

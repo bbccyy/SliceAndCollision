@@ -146,7 +146,7 @@ namespace Babeltime.Utils
             public List<Cell> History = new List<Cell>();  //可能存在连续2个Cell是同一个的情况(上一次内折，下一次外折) 
             public List<Cell> SamplePoint = new List<Cell>(); 
 
-            public List<Cell> WorkingFour = new List<Cell>((int)FourDir._Ct);
+            public Cell[] WorkingFour = new Cell[(int)FourDir._Ct];
 
             public void init(Texture2D tex)
             {
@@ -157,7 +157,7 @@ namespace Babeltime.Utils
                 History.Clear();
                 queue.Clear();
                 PolygonOutlines.Clear();
-                WorkingFour.Clear();
+                WorkingFour = new Cell[(int)FourDir._Ct];
                 SamplePoint.Clear();
                 nextCross = null;
 
@@ -226,13 +226,13 @@ namespace Babeltime.Utils
                 return mTable[aX, aY];
             }
             public void RegisterHistoryCell(Cell aCell)
-            {   //History用于追踪上一个访问过的点，同时标记访问状态，最后也可Debug用 
+            {   //History用于追踪上一个访问过的InCell，最后也可Debug用 
                 History.Add(aCell);
-                aCell.CrossPointVisited = true;
             }
             public void RegisterSamplePoint(Cell aCell)
             {
-                SamplePoint.Add(aCell);
+                if (SamplePoint.LastOrDefault() != aCell) 
+                    SamplePoint.Add(aCell);
             }
             public void UpdateTracker(OutlineState aCurSt, Cell aKeyCell)
             {
@@ -279,7 +279,7 @@ namespace Babeltime.Utils
                 History.Clear();
                 SamplePoint.Clear();
                 PolygonOutlines.Clear();
-                WorkingFour.Clear();
+                WorkingFour = null;
                 for (; y >= 0; y--)
                 {
                     bool find = false;
@@ -375,9 +375,7 @@ namespace Babeltime.Utils
                 if (aCtx.texture.GetPixel(x, y).a >= 1)
                 {
                     //find and init first cell 
-                    var cell = CellPool.Get();
-                    cell.Reinit(CellType.In, x, y);
-                    aCtx.nextCross = cell;
+                    aCtx.nextCross = aCtx.GetOrInitCellAt(x - 1, y); //第一个内部点的左边的点(其右上角对应田字中心) 
                     return FSM.FirstPoint;
                 }
             }
@@ -389,21 +387,21 @@ namespace Babeltime.Utils
         public FSM FirstPoint(Context aCtx)
         {
             //先获取目标点，这个点应该是第一个Cell 
-            var firstCell = aCtx.nextCross;
+            var leftDownCell = aCtx.nextCross;
+            var firstCell = aCtx.GetOrInitCellAt(leftDownCell.x + 1, leftDownCell.y); //第一个内点必然在nextCross的右侧 
             if (firstCell == null)
                 return FSM.Error;
 
-            aCtx.RegisterHistoryCell(firstCell); //入库，Debug用 
+            aCtx.RegisterHistoryCell(firstCell); //第一个InCell是当次唯一存在的InCell，理应放入History 
             aCtx.RegisterSamplePoint(firstCell); //第一个Cell一定作为采样点输出 
 
-            //标记firstCell左下和左上2个轮廓点 (注意，不要在此时标记firstCell本身，中心点标记发生在CalFour阶段) 
-            var leftCell = aCtx.GetOrInitCellAt(firstCell.x - 1, firstCell.y); //左上的轮廓点对应左侧Cell
-            if (leftCell != null) leftCell.CrossPointVisited = true;
-            var leftDownCell = aCtx.GetOrInitCellAt(firstCell.x - 1, firstCell.y - 1); //左下轮廓点对应左下Cell 
-            if (leftDownCell != null) leftDownCell.CrossPointVisited = true;
+            //标记leftDownCell和其下方2个轮廓点  
+            leftDownCell.CrossPointVisited = true;
+            var leftDownDownCell = aCtx.GetOrInitCellAt(leftDownCell.x, leftDownCell.y - 1); //下方轮廓点对应左下Cell 
+            if (leftDownDownCell != null) leftDownDownCell.CrossPointVisited = true;
 
             //为下一轮迭代准备 
-            aCtx.lastCrossDir = CrossDir.Left; //因为下一轮必然右移一格田字格 
+            aCtx.lastCrossDir = CrossDir.Left; //因为下一轮必然右移一格田字格区域，那么当前的十字中心点在下一轮来看，就是左侧Left  
 
             //确定下一个轮廓点中心点 
             aCtx.nextCross = firstCell; //意味着当前Cell右上角的轮廓点是下一次迭代的田字中心点 
@@ -442,7 +440,7 @@ namespace Babeltime.Utils
 
             //2个对角内点目前是非法的 
             int InCount = InList.Count;
-            if (InCount == 2 && CrossOppDirLUT[InList[0]] == InList[1]) return FSM.Error;
+            if (InCount == 2 && CrossOppDirLUT[InList[0]] == InList[1]) { Debug.Log("CalFour Error"); return FSM.Error;}
 
             //判断跳转状态 
             FSM ret = FSM.Error;
@@ -623,7 +621,7 @@ namespace Babeltime.Utils
             int loopingCount = 0;
 
             while (loopingCount < SafeLoopingNum && 
-                    (currentState != FSM.Done || currentState != FSM.Error))
+                    (currentState != FSM.Done && currentState != FSM.Error))
             {
                 switch(currentState)
                 {
