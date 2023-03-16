@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using static Babeltime.Utils.OutlineDetector;
 
@@ -41,6 +42,8 @@ namespace Babeltime.Utils
             _Ct = 4
         }
 
+        public static Array dirArray = Enum.GetValues(typeof(FourDir));
+
         public enum CrossDir  //田字中的十字端点(代表轮廓点方位) 
         {
             Undifined = 0,
@@ -62,6 +65,23 @@ namespace Babeltime.Utils
         {
             { FourDir.LeftDown, FourDir.RightUp },{ FourDir.RightUp, FourDir.LeftDown },
             { FourDir.LeftUp, FourDir.RightDown },{ FourDir.RightDown, FourDir.LeftUp },
+        };
+
+        //用于在田字区域中只有1个(或3个)内点时，给定上一个轮廓点，快速查询下一个轮廓点的朝向 
+        public static Dictionary<FourDir, Dictionary<CrossDir, CrossDir>> OneInFourLUT = new Dictionary<FourDir, Dictionary<CrossDir, CrossDir>>()
+        {
+            { FourDir.LeftDown, new Dictionary<CrossDir, CrossDir>(){ { CrossDir.Left, CrossDir.Down }, { CrossDir.Down, CrossDir.Left } } },
+            { FourDir.LeftUp, new Dictionary<CrossDir, CrossDir>(){ { CrossDir.Left, CrossDir.Up }, { CrossDir.Up, CrossDir.Left } } },
+            { FourDir.RightUp, new Dictionary<CrossDir, CrossDir>(){ { CrossDir.Up, CrossDir.Right }, { CrossDir.Right, CrossDir.Up } } },
+            { FourDir.RightDown, new Dictionary<CrossDir, CrossDir>(){ { CrossDir.Down, CrossDir.Right }, { CrossDir.Right, CrossDir.Down } } },
+        };
+
+        //用于在田字区域中只有2个内点时，给定上一个轮廓点，快速查询下一个轮廓点的朝向 
+        //注意，必须排除对角内点的情况，目前不支持 
+        public static Dictionary<CrossDir, CrossDir> TwoInFourLUT = new Dictionary<CrossDir, CrossDir>()
+        {
+            {CrossDir.Left, CrossDir.Right}, {CrossDir.Right, CrossDir.Left},
+            {CrossDir.Up, CrossDir.Down}, {CrossDir.Down, CrossDir.Up},
         };
 
         public class Cell : IPoolable
@@ -117,7 +137,7 @@ namespace Babeltime.Utils
             //  0 | 3
             public void FillUpWorkingFour(int aCellX, int aCellY)
             {
-                foreach(FourDir dir in Enum.GetValues(typeof(FourDir)))
+                foreach(FourDir dir in dirArray)
                 {
                     if (dir == FourDir._Ct) continue;
                     var offset = FourDirOffsetLUT[((int)dir)];
@@ -270,7 +290,7 @@ namespace Babeltime.Utils
             aCtx.RegisterHistoryCell(firstCell); //入库，Debug用 
             aCtx.RegisterSamplePoint(firstCell); //第一个Cell一定作为采样点输出 
 
-            //标记firstCell左下和左上2个轮廓点 
+            //标记firstCell左下和左上2个轮廓点 (注意，不要在此时标记firstCell本身，中心点标记发生在CalFour阶段) 
             var leftCell = aCtx.GetOrInitCellAt(firstCell.x - 1, firstCell.y); //左上的轮廓点对应左侧Cell
             if (leftCell != null) leftCell.CrossPointVisited = true;
             var leftDownCell = aCtx.GetOrInitCellAt(firstCell.x - 1, firstCell.y - 1); //左下轮廓点对应左下Cell 
@@ -282,7 +302,102 @@ namespace Babeltime.Utils
             //确定下一个轮廓点中心点 
             aCtx.nextCross = firstCell; //意味着当前Cell右上角的轮廓点是下一次迭代的田字中心点 
 
-            return FSM.Error;
+            return FSM.CalFour; //下一个状态是填充田字区域，并基于填充结果执行状态切换 
+        }
+
+        public FSM CalFour(Context aCtx)
+        {
+            if (aCtx.nextCross == null)
+                return FSM.Error;
+
+            if (aCtx.nextCross.CrossPointVisited)
+            {
+                return FSM.MeetEnd; //结束条件触发 
+            }
+
+            //标记当前的田字中心点为“访问过”状态 
+            aCtx.nextCross.CrossPointVisited = true;
+
+            //填充田字一共4个cell，左下角cell同时对应十字中心轮廓点 
+            var curCrossCenter = aCtx.nextCross;
+            aCtx.FillUpWorkingFour(curCrossCenter.x, curCrossCenter.y);
+
+            //计算内点 
+            List<FourDir> InList = new List<FourDir>(); 
+            foreach (FourDir dir in dirArray)
+            {
+                if (dir == FourDir._Ct) continue;
+                if (aCtx.WorkingFour[(int)dir] == null) continue;
+                if (aCtx.WorkingFour[(int)dir].type == CellType.In) InList.Add(dir);
+            }
+
+            //2个对角内点目前是非法的 
+            int InCount = InList.Count;
+            if (InCount == 2 && CrossOppDirLUT[InList[0]] == InList[1]) return FSM.Error;
+
+            //判断跳转状态 
+            FSM ret = FSM.Error;
+            switch(InCount)
+            {
+                case 1:
+                    ret = FSM.OneInFour;
+                    break;
+                case 2:
+                    ret = FSM.TwoInFour;
+                    break;
+                case 3:
+                    ret = FSM.ThreeInFour;
+                    break;
+                default:
+                    break; //0 or 4 or more is Invalid -> return Error 
+            }
+
+            return ret;
+        }
+
+        public FSM OneInFour(Context aCtx)
+        {
+            if (aCtx.lastCrossDir == CrossDir.Undifined) { Debug.Log("OneInFour err"); return FSM.Error;}
+
+            //确定是哪一个方位的Cell 
+            FourDir InCellDir = FourDir._Ct;
+            foreach (FourDir dir in dirArray)
+            {
+                if (dir == FourDir._Ct) continue;
+                if (aCtx.WorkingFour[(int)dir] == null) continue;
+                if (aCtx.WorkingFour[(int)dir].type == CellType.In)
+                {
+                    InCellDir = dir;
+                    break;
+                }
+            }
+            if (InCellDir == FourDir._Ct) { Debug.Log("OneInFour err"); return FSM.Error;}
+
+            //确定下一个移动方向 
+            var sub_lut = OneInFourLUT[InCellDir];
+            if (sub_lut == null) { Debug.Log("OneInFour err"); return FSM.Error;}
+            var nextDir = sub_lut[aCtx.lastCrossDir];
+            if (nextDir == CrossDir.Undifined) { Debug.Log("OneInFour err"); return FSM.Error;}
+
+            //更新context
+            switch(nextDir)
+            {
+                case CrossDir.Left:
+                    break;
+                case CrossDir.Right:
+                    break;
+                case CrossDir.Up:
+                    break;
+                case CrossDir.Down:
+                    break;
+                default:
+                    Debug.Log("OneInFour err");
+                    return FSM.Error;
+            }
+
+
+
+            return FSM.CalFour;
         }
 
         public void Detect()
@@ -299,6 +414,16 @@ namespace Babeltime.Utils
                         currentState = InitFirst(ctx);
                         break;
                     case FSM.FirstPoint:
+                        currentState = FirstPoint(ctx);
+                        break;
+                    case FSM.CalFour:
+                        currentState = CalFour(ctx);
+                        break;
+                    case FSM.OneInFour:
+                        break;
+                    case FSM.TwoInFour:
+                        break;
+                    case FSM.ThreeInFour:
                         break;
                     default:
                         Debug.LogError("Unknown FSM State");
