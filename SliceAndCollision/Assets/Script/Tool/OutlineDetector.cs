@@ -18,18 +18,6 @@ namespace Babeltime.Utils
 
         public const int SafeLoopingNum = 100000;
 
-        private static float onePixelSize = 0;
-        public static float OnePixelSize { 
-            get {
-                if (onePixelSize <= 0)
-                    return 0.01f;
-                return onePixelSize; 
-            } 
-            set { 
-                onePixelSize = value; 
-            }
-        }
-
         private Context ctx;
 
         public enum CellType
@@ -602,8 +590,8 @@ namespace Babeltime.Utils
             foreach (var cell in aCtx.SamplePoint)
             {
                 Vector3 curPos = new Vector3(
-                    (float)cell.x * OnePixelSize + MeshRoot.x,
-                    (float)cell.y * OnePixelSize + MeshRoot.y,
+                    (float)cell.x * Img2PolyParser.OnePixelSize + MeshRoot.x,
+                    (float)cell.y * Img2PolyParser.OnePixelSize + MeshRoot.y,
                     0 + MeshRoot.z
                     );
 
@@ -661,7 +649,18 @@ namespace Babeltime.Utils
             return;
         }
 
+        public void RetriveOutline(out List<Vector3> aPoints)
+        {
+            aPoints = null;
+            if (ctx != null)
+                aPoints = ctx.PolygonOutlines;
+        }
 
+        public void Reset()
+        {
+            if (ctx != null) ctx.Dispose();
+            ctx = null;
+        }
     }
 }
 
