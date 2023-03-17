@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using sm = Babeltime.SimpleMath.SimpleMath;
+using EarClipperLib;
 
 namespace Babeltime.Utils
 {
@@ -73,6 +74,46 @@ namespace Babeltime.Utils
             return aTheta <= targetTheta;
         }
 
+
+        private static void V3toV3m(in List<Vector3> aIn, out List<Vector3m> aOut)
+        {
+            aOut = new List<Vector3m>(aIn.Count);
+            foreach(var elm in aIn)
+            {
+                aOut.Add(new Vector3m(elm.x, elm.y, elm.z));
+            }
+        }
+
+        private static void V3mtoV3(in List<Vector3m> aIn, out List<Vector3> aOut)
+        {
+            aOut = new List<Vector3>(aIn.Count);
+            foreach (var elm in aIn)
+            {
+                aOut.Add(new Vector3((float)elm.X.ToDouble(), (float)elm.Y.ToDouble(), (float)elm.Z.ToDouble()));
+            }
+        }
+
+        public static void Triangulation(in List<Vector3> aCCW, in List<Vector3> aCW, out List<Vector3> aOutputs)
+        {
+            List<Vector3m> points = null;
+            V3toV3m(in aCCW, out points);
+
+            List<List<Vector3m>> holes = null;
+            if (aCW != null && aCW.Count > 0) 
+            {
+                List<Vector3m> hole;
+                V3toV3m(in aCW, out hole);
+                holes = new List<List<Vector3m>>();
+                holes.Add(hole);
+            }
+
+            EarClipping earClipping = new EarClipping();
+            earClipping.SetPoints(points, holes);
+            earClipping.Triangulate();
+            var res = earClipping.Result;
+
+            V3mtoV3(res, out aOutputs);
+        }
 
     }
 

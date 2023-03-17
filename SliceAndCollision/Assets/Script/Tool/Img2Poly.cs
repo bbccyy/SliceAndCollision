@@ -13,7 +13,7 @@ namespace Babeltime.Utils
         public string input_path = "Assets/Src/InputImgs/Batch_1";
 
         [SerializeField]
-        public string output_path = "Assets/Src/InputImgs/Batch_1";
+        public string output_path = "Assets/Src/Outputs/Batch_1";
 
         [MenuItem("Tool/Image To Polygon")]
         public static void GeneratePolygon()
@@ -36,8 +36,8 @@ namespace Babeltime.Utils
 
         private void StartProcessing(string pathIn, string pathOut)
         {
-
             Img2PolyParser.Instance.LoadImgAssetInPath(pathIn);
+            Img2PolyParser.Instance.ScheduleWork(pathOut);
 
         }
 
