@@ -60,24 +60,35 @@ namespace Babeltime.Utils
         public void Work(Texture2D aTex, string aOutpath)
         {
             Debug.Log($"start process tex {aTex.name}");
-            List<Vector3> data;
+            List<Vector3> baseOutline = null;
 
             //边缘检测 
             var detector = new OutlineDetector();
             detector.EatTexture(aTex);
             detector.Detect();
-            detector.RetriveOutline(out data);
+            detector.RetriveOutline(out baseOutline);
 
             //边缘合并/优化 
-            List<Vector3> outputs;
-            OutlinePostprocess.TryConbineSegments(data, out outputs);
+            List<Vector3> refinedOutline = null;
+            OutlinePostprocess.TryConbineSegments(baseOutline, out refinedOutline);
 
             //基础三角形化 
-            List<Vector3> tris;
-            OutlinePostprocess.Triangulation(outputs, null, out tris);
+            List<Vector3> tris = null;
+            OutlinePostprocess.Triangulation(refinedOutline, null, out tris);
 
-            //保存为Mesh
-            PolyMeshBuilder.BuildMesh(tris, aOutpath, aTex.name);
+            //构建基本Mesh
+            Mesh baseMesh = null;
+            PolyMeshBuilder.BuildBaseMesh(tris, aOutpath, aTex, out baseMesh);
+
+            //保存Mesh到本地
+            PolyMeshBuilder.SaveMesh(baseMesh, aOutpath, aTex.name);
+
+            //构建发光带Mesh
+            //Mesh outlineMesh = null;
+            //TODO
+
+            //拼装prefab
+            PolyMeshBuilder.StoreAssetToPath(refinedOutline, aOutpath, aTex.name);
 
             datas.Add(tris);
             detector.Reset();

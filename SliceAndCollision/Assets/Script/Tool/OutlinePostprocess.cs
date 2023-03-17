@@ -115,6 +115,15 @@ namespace Babeltime.Utils
             V3mtoV3(res, out aOutputs);
         }
 
+        public static void ShiftOutlineBasedOnNormalDir(List<Vector3> aOriginOutlines, float aDelta, out List<Vector3> aOutput)
+        {
+            aOutput = new List<Vector3>();
+
+
+
+
+        }
+
     }
 
 }
