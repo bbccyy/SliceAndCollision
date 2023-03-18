@@ -75,32 +75,31 @@ namespace Babeltime.Utils
             Debug.Log($"start process tex {aTex.name}");
             List<Vector3> baseOutline = null;
 
-            //边缘检测 
+            //(1)提取图片轮廓边缘，形成Polygon 
+            //(1.1)边缘检测 
             var detector = new OutlineDetector();
             detector.EatTexture(aTex);
             detector.Detect();
             detector.RetriveOutline(out baseOutline);
-
-            //边缘合并/优化 
+            //(1.2)边缘合并/优化 
             List<Vector3> refinedOutline = null;
             OutlinePostprocess.TryConbineSegments(baseOutline, out refinedOutline);
 
-            //基础三角形化 
+            //(2)构建并保存基础Mesh
+            //(2.1)基础三角形化 
             List<Vector3> tris = null;
-            //OutlinePostprocess.Triangulation(refinedOutline, null, out tris);
-
-            //构建基本Mesh
+            OutlinePostprocess.Triangulation(refinedOutline, null, out tris);
+            //(2.2)构建基本Mesh
             Mesh baseMesh = null;
-            //PolyMeshBuilder.BuildBaseMesh(tris, aTex, out baseMesh);
+            PolyMeshBuilder.BuildBaseMesh(tris, aTex, out baseMesh);
+            //(2.3)保存Mesh到本地
+            PolyMeshBuilder.SaveMesh(baseMesh, aOutpath, baseMesh.name);
 
-            //保存Mesh到本地
-            //PolyMeshBuilder.SaveMesh(baseMesh, aOutpath, aTex.name);
-
-            //构建边缘轮廓带Mesh 
-            //先Shift轮廓线 
+            //(3)构建边缘轮廓带Mesh 
+            //(3.1)先Shift轮廓线 
             List<Vector3> shiftedOutline = null;
             OutlinePostprocess.ShiftOutlineBasedOnNormalDir(refinedOutline, shiftedDelta, out shiftedOutline);
-            //三角形化
+            //(3.2)三角形化
             List<Vector3> outer, inner;
             if (shiftedDelta > 0)
             {
@@ -116,15 +115,17 @@ namespace Babeltime.Utils
             }
             List<Vector3> tris2 = null;
             OutlinePostprocess.Triangulation(outer, inner, out tris2);
+            //(3.3)构建轮廓Mesh
+            Mesh outlineMesh = null;
+            PolyMeshBuilder.BuildRingMesh(tris2, outer, inner, $"{baseMesh.name}_ring", out outlineMesh);
+            //(3.4)保存Mesh到本地
+            PolyMeshBuilder.SaveMesh(outlineMesh, aOutpath, outlineMesh.name);
 
-            //Mesh outlineMesh = null;
-            //TODO
-
-            //拼装prefab
-            //PolyMeshBuilder.StoreAssetToPath(refinedOutline, aOutpath, aTex.name);
+            //(4)拼装prefab 
+            PolyMeshBuilder.StoreAssetToPath(refinedOutline, aOutpath, baseMesh.name, outlineMesh.name);
 
             //datas.Add(tris);
-            datas.Add(tris2);
+            //datas.Add(tris2);  //quick show 
             detector.Reset();
         }
 

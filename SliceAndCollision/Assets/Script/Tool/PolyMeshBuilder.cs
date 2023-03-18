@@ -30,7 +30,7 @@ namespace Babeltime.Utils
                 return;
             }
 
-            string name = $"{aName}_ring";
+            string name = aName;
 
             Vector3 offset = Img2PolyParser.MeshRoot;
 
@@ -168,24 +168,41 @@ namespace Babeltime.Utils
             AssetDatabase.Refresh();
         }
 
-        public static void StoreAssetToPath(List<Vector3> aOutlines, string aPath, string aName)
+        public static void StoreAssetToPath(List<Vector3> aOutlines, string aPath, string aBaseName, string aRingName)
         {
+            //create base 
             var go = new GameObject();
-            go.name = aName;
-            var meshFilter = go.AddComponent<MeshFilter>();
+            go.name = aBaseName;
+            go.transform.localPosition = Vector3.zero;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = Vector3.one;
 
-            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>($"{aPath}/{aName}.asset");
-
-            //meshFilter.sharedMesh = mesh;
-            meshFilter.mesh = mesh;
-
-            var meshRender = go.AddComponent<MeshRenderer>();
+            //create ring 
+            var ring = new GameObject();
+            ring.name = aRingName;
+            ring.transform.SetParent(go.transform);
+            ring.transform.localPosition = Vector3.zero;
+            ring.transform.localRotation = Quaternion.identity;
+            ring.transform.localScale = Vector3.one;
 
             Shader tmpShader = Shader.Find("Unlit/Texture");
             Material mat = new Material(tmpShader);
-            //meshRender.SetMaterials(new List<Material>() { mat });
+
+            //setup ring mesh 
+            var ringMeshFilter = ring.AddComponent<MeshFilter>();
+            var ringMesh = AssetDatabase.LoadAssetAtPath<Mesh>($"{aPath}/{aRingName}.asset");
+            ringMeshFilter.mesh = ringMesh;
+            var ringMeshRender = ring.AddComponent<MeshRenderer>();
+            ringMeshRender.material = mat;
+
+            //setup base mesh 
+            var meshFilter = go.AddComponent<MeshFilter>();
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>($"{aPath}/{aBaseName}.asset");
+            meshFilter.mesh = mesh;
+            var meshRender = go.AddComponent<MeshRenderer>();
             meshRender.material = mat;
 
+            //setup Polygon Collider 2D 
             var pc2D = go.AddComponent<PolygonCollider2D>();
             List<Vector2> points = new List<Vector2>();
             foreach(var p in aOutlines)
@@ -193,14 +210,8 @@ namespace Babeltime.Utils
                 points.Add(new Vector2(p.x, p.y));
             }
             pc2D.points = points.ToArray();
-            //pc2D.
 
-            go.transform.localPosition = Vector3.zero;
-            go.transform.localRotation = Quaternion.identity;
-
-            PrefabUtility.SaveAsPrefabAsset(go, $"{aPath}/{aName}.prefab");
-
-            
+            PrefabUtility.SaveAsPrefabAsset(go, $"{aPath}/{aBaseName}.prefab");
         }
 
 
