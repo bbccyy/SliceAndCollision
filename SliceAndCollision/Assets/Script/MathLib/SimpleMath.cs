@@ -38,7 +38,7 @@ namespace Babeltime.SimpleMath
             {
                 if (Vector2.Dot(d1, d2) > 0)
                 {
-                    return new Vector2(0,0); //没有线段交点 
+                    return Vector2.zero; //没有线段交点 
                 }
             }
 
@@ -48,7 +48,7 @@ namespace Babeltime.SimpleMath
             {
                 if (Vector2.Dot(d1, d2) > 0)
                 {
-                    return new Vector2(0, 0); //没有线段交点 
+                    return Vector2.zero; //没有线段交点 
                 }
             }
 
@@ -102,12 +102,12 @@ namespace Babeltime.SimpleMath
                         if (firstStart.x == secondStart.x)
                         {
                             //throw new Exception("两条直线互相重合，且平行于Y轴，无法计算交点。");
-                            return new Vector2(0, 0);
+                            return Vector2.zero;
                         }
                         else
                         {
                             //throw new Exception("两条直线互相平行，且平行于Y轴，无法计算交点。");
-                            return new Vector2(0, 0);
+                            return Vector2.zero;
                         }
                     }
                 case 1: //L1存在斜率, L2平行Y轴
@@ -137,7 +137,7 @@ namespace Babeltime.SimpleMath
                     }
             }
             // throw new Exception("不可能发生的情况");
-            return new Vector2(0, 0);
+            return Vector2.zero;
         }
 
     }

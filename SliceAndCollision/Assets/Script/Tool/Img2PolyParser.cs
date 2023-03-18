@@ -4,10 +4,6 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-using Babeltime.SimpleMath;
-using Unity.VisualScripting;
-using static Unity.IO.LowLevel.Unsafe.AsyncReadManagerMetrics;
-using UnityEngine.UIElements;
 using System.Collections.Concurrent;
 
 namespace Babeltime.Utils
@@ -24,6 +20,23 @@ namespace Babeltime.Utils
         public static int minThresholdInPixels = 5;        //该数量像素尺寸定义为"小"线段
         public static float maxThresholdInAngle = 22.0f;   //2线段夹角若小于此值时可合并(对较短线段适用)
         public static int maxThresholdInPixels = 15;       //该数量像素尺寸定义为"长"线段 
+
+        public static Vector3 MeshRoot = Vector3.zero;      //输出Mesh做整体偏移用 
+
+        private static float shiftedDelta
+        {
+            get { return (float)ShiftedPixel * OnePixelSize; }
+        }
+
+        private static int shiftedPixel = 0;
+        public static int ShiftedPixel
+        {
+            get {
+                if (shiftedPixel == 0)
+                    return 10;
+                return shiftedPixel; }
+            set { shiftedPixel = value; }
+        }
 
         private static float onePixelSize = 0;
         public static float OnePixelSize
@@ -74,23 +87,44 @@ namespace Babeltime.Utils
 
             //基础三角形化 
             List<Vector3> tris = null;
-            OutlinePostprocess.Triangulation(refinedOutline, null, out tris);
+            //OutlinePostprocess.Triangulation(refinedOutline, null, out tris);
 
             //构建基本Mesh
             Mesh baseMesh = null;
-            PolyMeshBuilder.BuildBaseMesh(tris, aOutpath, aTex, out baseMesh);
+            //PolyMeshBuilder.BuildBaseMesh(tris, aTex, out baseMesh);
 
             //保存Mesh到本地
-            PolyMeshBuilder.SaveMesh(baseMesh, aOutpath, aTex.name);
+            //PolyMeshBuilder.SaveMesh(baseMesh, aOutpath, aTex.name);
 
-            //构建发光带Mesh
+            //构建边缘轮廓带Mesh 
+            //先Shift轮廓线 
+            List<Vector3> shiftedOutline = null;
+            OutlinePostprocess.ShiftOutlineBasedOnNormalDir(refinedOutline, shiftedDelta, out shiftedOutline);
+            //三角形化
+            List<Vector3> outer, inner;
+            if (shiftedDelta > 0)
+            {
+                refinedOutline.Reverse();  //向外扩展，对应内圈是refinedOutline，修改为CW 
+                outer = shiftedOutline;
+                inner = refinedOutline;
+            }
+            else
+            {
+                shiftedOutline.Reverse();   //向内扩展，内圈就是shiftedOutline，修改为CW 
+                outer = refinedOutline;
+                inner = shiftedOutline;
+            }
+            List<Vector3> tris2 = null;
+            OutlinePostprocess.Triangulation(outer, inner, out tris2);
+
             //Mesh outlineMesh = null;
             //TODO
 
             //拼装prefab
-            PolyMeshBuilder.StoreAssetToPath(refinedOutline, aOutpath, aTex.name);
+            //PolyMeshBuilder.StoreAssetToPath(refinedOutline, aOutpath, aTex.name);
 
-            datas.Add(tris);
+            //datas.Add(tris);
+            datas.Add(tris2);
             detector.Reset();
         }
 

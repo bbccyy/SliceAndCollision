@@ -21,9 +21,83 @@ namespace Babeltime.Utils
             return uv;
         }
 
-        public static void BuildBaseMesh(List<Vector3> aTris, string aPath, Texture2D aTex, out Mesh output)
+        public static void BuildRingMesh(List<Vector3> aTris, List<Vector3> aOutter, List<Vector3> aInner, string aName, out Mesh output)
         {
-            if (aTris == null || aTris.Count ==0 || aPath?.Length == 0)
+            if (aTris == null || aTris.Count == 0)
+            {
+                Debug.Log("BuildRingMesh Fail");
+                output = null;
+                return;
+            }
+
+            string name = $"{aName}_ring";
+
+            Vector3 offset = Img2PolyParser.MeshRoot;
+
+            Dictionary<Vector3, int> point2Idx = new Dictionary<Vector3, int>();
+
+            Dictionary<Vector3, float> point2UV = new Dictionary<Vector3, float>();
+            foreach(var p in aOutter) { point2UV[p] = 1.0f; }
+            foreach(var p in aInner) { point2UV[p] = 0f; }
+
+            output = new Mesh();
+
+            List<Vector3> vertices = new List<Vector3>();
+
+            List<int> submesh = new List<int>();
+
+            List<Vector2> uv = new List<Vector2>();
+
+            int verIdx = 0;
+
+            for (int i = 0; i < aTris.Count; i += 3)
+            {
+                var p1 = aTris[i];
+                var p2 = aTris[i + 1];
+                var p3 = aTris[i + 2];
+
+                if (!point2Idx.ContainsKey(p1))
+                {
+                    point2Idx.Add(p1, verIdx++);
+                    vertices.Add(p1 + offset);
+                    float u = point2UV.GetValueOrDefault(p1, 0);
+                    uv.Add(new Vector2(u, u));
+                }
+                submesh.Add(point2Idx[p1]);
+
+                if (!point2Idx.ContainsKey(p2))
+                {
+                    point2Idx.Add(p2, verIdx++);
+                    vertices.Add(p2 + offset);
+                    float u = point2UV.GetValueOrDefault(p2, 0);
+                    uv.Add(new Vector2(u, u));
+                }
+                submesh.Add(point2Idx[p2]);
+                if (!point2Idx.ContainsKey(p3))
+                {
+                    point2Idx.Add(p3, verIdx++);
+                    vertices.Add(p3 + offset);
+                    float u = point2UV.GetValueOrDefault(p3, 0);
+                    uv.Add(new Vector2(u, u));
+                }
+                submesh.Add(point2Idx[p3]);
+            }
+
+            output.SetVertices(vertices);
+            output.SetTriangles(submesh, 0);
+            output.SetUVs(0, uv);
+
+            output.RecalculateBounds();
+
+            output.name = name;
+
+            Debug.Log($"Build ring mesh {output.name} done!");
+
+        }
+
+        public static void BuildBaseMesh(List<Vector3> aTris, Texture2D aTex, out Mesh output)
+        {
+            if (aTris == null || aTris.Count ==0)
             {
                 Debug.Log("BuildMesh Fail");
                 output = null;
@@ -31,6 +105,8 @@ namespace Babeltime.Utils
             }
 
             string aName = aTex.name;
+
+            Vector3 offset = Img2PolyParser.MeshRoot;
 
             Dictionary<Vector3, int> point2Idx = new Dictionary<Vector3, int>();
 
@@ -53,7 +129,7 @@ namespace Babeltime.Utils
                 if(!point2Idx.ContainsKey(p1)) 
                 {  
                     point2Idx.Add(p1, verIdx++);
-                    vertices.Add(p1);
+                    vertices.Add(p1 + offset);
                     uv.Add(MappingUVtoTex(p1, aTex));
                 }
                 submesh.Add(point2Idx[p1]);
@@ -61,14 +137,14 @@ namespace Babeltime.Utils
                 if (!point2Idx.ContainsKey(p2))
                 {
                     point2Idx.Add(p2, verIdx++);
-                    vertices.Add(p2);
+                    vertices.Add(p2 + offset);
                     uv.Add(MappingUVtoTex(p2, aTex));
                 }
                 submesh.Add(point2Idx[p2]);
                 if (!point2Idx.ContainsKey(p3))
                 {
                     point2Idx.Add(p3, verIdx++);
-                    vertices.Add(p3);
+                    vertices.Add(p3 + offset);
                     uv.Add(MappingUVtoTex(p3, aTex));
                 }
                 submesh.Add(point2Idx[p3]);
@@ -82,7 +158,7 @@ namespace Babeltime.Utils
 
             output.name = aName;
 
-            Debug.Log($"Save mesh {output.name} done!");
+            Debug.Log($"Build base mesh {output.name} done!");
         }
 
         public static void SaveMesh(Mesh aMesh, string aPath, string aName)

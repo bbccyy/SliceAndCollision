@@ -2,9 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
-using static Babeltime.Utils.OutlineDetector;
 
 namespace Babeltime.Utils
 {
@@ -13,8 +11,6 @@ namespace Babeltime.Utils
         public static ObjectPool<Cell> CellPool = new ObjectPool<Cell>(100000);
 
         public static int seqBentSeqThreshold = 5; //判断是否构成“直线”->“外折”->“直线”的直线长度(像素个数) 
-
-        public static Vector3 MeshRoot = Vector3.zero;
 
         public const int SafeLoopingNum = 100000;
 
@@ -590,9 +586,9 @@ namespace Babeltime.Utils
             foreach (var cell in aCtx.SamplePoint)
             {
                 Vector3 curPos = new Vector3(
-                    (float)cell.x * Img2PolyParser.OnePixelSize + MeshRoot.x,
-                    (float)cell.y * Img2PolyParser.OnePixelSize + MeshRoot.y,
-                    0 + MeshRoot.z
+                    (float)cell.x * Img2PolyParser.OnePixelSize,
+                    (float)cell.y * Img2PolyParser.OnePixelSize,
+                    0
                     );
 
                 aCtx.PolygonOutlines.Add(curPos);
