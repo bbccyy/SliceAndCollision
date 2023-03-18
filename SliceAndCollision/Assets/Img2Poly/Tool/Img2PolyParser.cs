@@ -12,14 +12,15 @@ namespace Babeltime.Utils
 
         public static Img2PolyParser Instance = new Img2PolyParser();
 
-        public ConcurrentBag<List<Vector3>> datas = new ConcurrentBag<List<Vector3>>();  
+        public static ConcurrentBag<List<Vector3>> datas = new ConcurrentBag<List<Vector3>>();  
 
-        private List<Texture2D> loadedTex2D = new List<Texture2D>();
+        private static List<Texture2D> loadedTex2D = new List<Texture2D>();
 
         public static float minThresholdInAngle = 0.1f;    //2线段夹角若小于此值时可合并(对较长线段适用)
         public static int minThresholdInPixels = 5;        //该数量像素尺寸定义为"小"线段
         public static float maxThresholdInAngle = 22.0f;   //2线段夹角若小于此值时可合并(对较短线段适用)
         public static int maxThresholdInPixels = 15;       //该数量像素尺寸定义为"长"线段 
+        public static int rootMode = 0;
 
         public static Vector3 MeshRoot = Vector3.zero;      //输出Mesh做整体偏移用 
 
@@ -65,6 +66,12 @@ namespace Babeltime.Utils
 
             foreach (var tex in loadedTex2D)
             {
+                //需要先更新下offset 
+                if (rootMode == 0) 
+                    MeshRoot = Vector3.zero;
+                else
+                    MeshRoot = new Vector3(tex.width * OnePixelSize * 0.5f, tex.height * OnePixelSize * 0.5f, 0);
+
                 //TODO: 多线程处理Tex，一个线程负责一张Tex 
                 Work(tex, aPathOut);
             }
@@ -102,19 +109,19 @@ namespace Babeltime.Utils
             //(3.2)三角形化
             List<Vector3> outer, inner;
             if (shiftedDelta > 0)
-            {
-                refinedOutline.Reverse();  //向外扩展，对应内圈是refinedOutline，修改为CW 
+            {   //目前采用手动切三角形，无需内圈反向 (以后改用CDT时需要) 
+                //refinedOutline.Reverse();  //向外扩展，对应内圈是refinedOutline，修改为CW 
                 outer = shiftedOutline;
                 inner = refinedOutline;
             }
             else
             {
-                shiftedOutline.Reverse();   //向内扩展，内圈就是shiftedOutline，修改为CW 
+                //shiftedOutline.Reverse();   //向内扩展，内圈就是shiftedOutline，修改为CW 
                 outer = refinedOutline;
                 inner = shiftedOutline;
             }
             List<Vector3> tris2 = null;
-            OutlinePostprocess.Triangulation(outer, inner, out tris2);
+            OutlinePostprocess.RingTriangulation(outer, inner, out tris2);
             //(3.3)构建轮廓Mesh
             Mesh outlineMesh = null;
             PolyMeshBuilder.BuildRingMesh(tris2, outer, inner, $"{baseMesh.name}_ring", out outlineMesh);
