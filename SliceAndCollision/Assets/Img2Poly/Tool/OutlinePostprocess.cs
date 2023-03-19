@@ -4,6 +4,7 @@ using UnityEngine;
 
 using sm = Babeltime.SimpleMath.SimpleMath;
 using EarClipperLib;
+using Haze;
 
 namespace Babeltime.Utils
 {
@@ -150,6 +151,21 @@ namespace Babeltime.Utils
 
             //TODO:
             Debug.LogWarning("Unsupported condition when RingTriangulation");
+        }
+
+        public static void TriangulaitonHaze(in List<Vector3> aCCW, out List<Vector3> aOutputs)
+        {
+            List<Vector2> inputs = null;
+            V3toV2(aCCW, out inputs);
+            var tris = Triangulator.Triangulate(inputs);
+
+            aOutputs = new List<Vector3>();
+            foreach (var tri in tris)
+            {
+                aOutputs.Add(new Vector3(tri.a.x, tri.a.y, 0));
+                aOutputs.Add(new Vector3(tri.b.x, tri.b.y, 0));
+                aOutputs.Add(new Vector3(tri.c.x, tri.c.y, 0));
+            }
         }
 
         public static void Triangulation(in List<Vector3> aCCW, in List<Vector3> aCW, out List<Vector3> aOutputs)

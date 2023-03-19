@@ -70,7 +70,7 @@ namespace Babeltime.Utils
                 if (rootMode == 0) 
                     MeshRoot = Vector3.zero;
                 else
-                    MeshRoot = new Vector3(tex.width * OnePixelSize * 0.5f, tex.height * OnePixelSize * 0.5f, 0);
+                    MeshRoot = new Vector3(-tex.width * OnePixelSize * 0.5f, -tex.height * OnePixelSize * 0.5f, 0);
 
                 //TODO: 多线程处理Tex，一个线程负责一张Tex 
                 Work(tex, aPathOut);
@@ -96,6 +96,7 @@ namespace Babeltime.Utils
             //(2.1)基础三角形化 
             List<Vector3> tris = null;
             OutlinePostprocess.Triangulation(refinedOutline, null, out tris);
+            //OutlinePostprocess.TriangulaitonHaze(refinedOutline, out tris); //这个API运行到一半会报错:( 
             //(2.2)构建基本Mesh
             Mesh baseMesh = null;
             PolyMeshBuilder.BuildBaseMesh(tris, aTex, out baseMesh);

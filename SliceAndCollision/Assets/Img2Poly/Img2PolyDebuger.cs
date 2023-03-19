@@ -20,8 +20,7 @@ namespace Babeltime.Utils
         // Update is called once per frame
         void Update()
         {
-
-            var datas = Img2PolyParser.Instance.datas;
+            var datas = Img2PolyParser.datas;
 
             if (datas != null)
             {
