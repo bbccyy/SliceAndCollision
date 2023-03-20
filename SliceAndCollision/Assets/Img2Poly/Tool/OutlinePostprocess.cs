@@ -22,6 +22,9 @@ namespace Babeltime.Utils
             var AB = B - A;
             AB.Normalize();
             aOutput.Add(A);
+            //TODO: 基于AB,AC,AD的平均方向，作为当前推进的基准，倾向于实际点位于平均基准线的右侧！
+            //这样做的好处是可以处理难以整合的Zigzag形状斜拉线 
+            //偏移角度的阈值修正可以基于高斯函数 
 
             for (int i = 2; i < aInputs.Count; i++)
             {

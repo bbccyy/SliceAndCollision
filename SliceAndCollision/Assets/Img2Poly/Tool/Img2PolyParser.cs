@@ -62,6 +62,9 @@ namespace Babeltime.Utils
         {
             Debug.Log($"output path dir is: {aPathOut}");
 
+            if(!Directory.Exists(aPathOut))
+                Directory.CreateDirectory(aPathOut);
+
             if (loadedTex2D.Count == 0)
             {
                 Debug.LogWarning("ScheduleWork Fail, No src tex2d");
