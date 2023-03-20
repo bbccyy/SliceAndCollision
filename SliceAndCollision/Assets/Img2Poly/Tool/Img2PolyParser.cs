@@ -16,10 +16,14 @@ namespace Babeltime.Utils
 
         private static List<Texture2D> loadedTex2D = new List<Texture2D>();
 
-        public static float minThresholdInAngle = 0.1f;    //2线段夹角若小于此值时可合并(对较长线段适用)
-        public static int minThresholdInPixels = 5;        //该数量像素尺寸定义为"小"线段
-        public static float maxThresholdInAngle = 22.0f;   //2线段夹角若小于此值时可合并(对较短线段适用)
-        public static int maxThresholdInPixels = 15;       //该数量像素尺寸定义为"长"线段 
+        public static float minThresholdInAngle = 0.1f;     //2线段夹角若小于此值时可合并(对较长线段适用)
+        public static int minThresholdInPixels = 5;         //该数量像素尺寸定义为"小"线段
+        public static float maxThresholdInAngle = 22.0f;    //2线段夹角若小于此值时可合并(对较短线段适用)
+        public static int maxThresholdInPixels = 15;        //该数量像素尺寸定义为"长"线段 
+
+        public static float minCombineAngle = -0.5f;        //大于此角度时合并 
+        public static float maxCombineAngle = 3.7f;         //小于此角度时合并
+
         public static int rootMode = 0;
 
         public static Vector3 MeshRoot = Vector3.zero;      //输出Mesh做整体偏移用 
@@ -90,7 +94,13 @@ namespace Babeltime.Utils
             detector.RetriveOutline(out baseOutline);
             //(1.2)边缘合并/优化 
             List<Vector3> refinedOutline = null;
+            
             OutlinePostprocess.TryConbineSegments(baseOutline, out refinedOutline);
+
+            baseOutline = refinedOutline;
+            refinedOutline = null;
+            OutlinePostprocess.CombineSegmentsV2(baseOutline, out refinedOutline);
+
 
             //(2)构建并保存基础Mesh
             //(2.1)基础三角形化 

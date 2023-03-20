@@ -32,6 +32,12 @@ namespace Babeltime.Utils
         public int maxThresholdInPixels = 15;       //该数量像素尺寸定义为"长"线段 
 
         [SerializeField]
+        public float minCombineAngle = -.5f;
+
+        [SerializeField]
+        public float maxCombineAngle = 3.7f;
+
+        [SerializeField]
         public int rootOffsetMode = 0;              //0: Mesh的原点在图片左下角，1:图片中心点 
 
         [SerializeField]
@@ -46,6 +52,10 @@ namespace Babeltime.Utils
             Img2PolyParser.maxThresholdInPixels = maxThresholdInPixels;
             Img2PolyParser.minThresholdInAngle = minThresholdInAngle;
             Img2PolyParser.maxThresholdInAngle = maxThresholdInAngle;
+
+            Img2PolyParser.minCombineAngle = minCombineAngle;
+            Img2PolyParser.maxCombineAngle = maxCombineAngle;
+
             Img2PolyParser.rootMode = rootOffsetMode;
             Img2PolyParser.OnePixelSize = onePixelSize;
             Img2PolyParser.ShiftedPixel = extrudePixelNum;
@@ -84,11 +94,16 @@ namespace Babeltime.Utils
             extrudePixelNum = EditorGUILayout.IntSlider("边缘轮廓宽度(像素) ", extrudePixelNum, -20, 20);
 
             GUILayout.Space(20);
-            GUILayout.Label("描边准确性相关参数:");
+            GUILayout.Label("第一次描边优化参数 (除非出现孔隙，不然无需调整):");
             minThresholdInPixels = EditorGUILayout.IntField("定义短线段(像素)", minThresholdInPixels);
             maxThresholdInPixels = EditorGUILayout.IntField("定义长线段(像素)", maxThresholdInPixels);
             minThresholdInAngle = EditorGUILayout.FloatField("夹角<此值时合并(短线段)", minThresholdInAngle);
             maxThresholdInAngle = EditorGUILayout.FloatField("夹角<此值时合并(长线段)", maxThresholdInAngle);
+
+            GUILayout.Space(20);
+            GUILayout.Label("第二次描边优化参数:");
+            minCombineAngle = EditorGUILayout.FloatField("夹角>此值时合并", minCombineAngle);
+            maxCombineAngle = EditorGUILayout.FloatField("夹角<此值时合并", maxCombineAngle);
 
             GUILayout.Space(20);
             if (GUILayout.Button("Generate", GUILayout.Width(100), GUILayout.Height(50)))

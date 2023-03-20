@@ -2,8 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor.Search;
 using UnityEngine;
-using static Babeltime.Utils.OutlineDetector;
+
 
 namespace Babeltime.Utils
 {
@@ -30,6 +31,7 @@ namespace Babeltime.Utils
             Sequence = 1,       //连续点 -> 对应田字内有2个(非对角)InCell -> 需记录连续个数 
             InnerBent = 2,      //内折点 -> 对应田字内只有1个InCell
             OutterBent = 3,     //外转点 -> 对应田字内有3个InCell
+            Zigzag = 4,         //连续弯折 
         }
 
         public enum FourDir //田字区域的各个方向 
@@ -150,6 +152,7 @@ namespace Babeltime.Utils
             public List<Vector3> PolygonOutlines = new List<Vector3>();
 
             public Queue<OutlineTracker> queue = new Queue<OutlineTracker>();
+            public LinkedList<OutlineTracker> lqueue = new LinkedList<OutlineTracker>();
 
             public Texture2D texture;
             public int texWidth = 0;
@@ -251,16 +254,17 @@ namespace Babeltime.Utils
             }
             public void UpdateTracker(OutlineState aCurSt, Cell aKeyCell)
             {
-                if (queue.Count == 0)
+                if (lqueue.Count == 0)
                 {   //初始状态 
                     OutlineTracker firstTk = OutlineTrakerPool.Get();
                     firstTk.Reinit(aCurSt);
                     firstTk.keyCell = aKeyCell;
-                    queue.Enqueue(firstTk);
+                    lqueue.AddLast(firstTk);
+                    RegisterSamplePoint(aKeyCell);  //第一个点必定采样 
                     return;
                 }
 
-                var latestTk = queue.ElementAt(queue.Count - 1);
+                var latestTk = lqueue.Last(); 
                 if (latestTk.st == OutlineState.Sequence && aCurSt == OutlineState.Sequence)
                 {   //合并连续序列
                     latestTk.keyCell = aKeyCell;
@@ -268,24 +272,37 @@ namespace Babeltime.Utils
                     return;
                 }
 
+                //判断条件，输出采样，避免过拟合 
+                if(lqueue.Count == 3)
+                {
+                    var oldestTk = lqueue.First();
+                    lqueue.RemoveFirst();  //Dequeue first 
+                    if (oldestTk.st == OutlineState.Sequence && latestTk.st == OutlineState.Sequence
+                       && lqueue.First().st == OutlineState.OutterBent &&
+                       oldestTk.seqCount >= seqBentSeqThreshold && latestTk.seqCount >= seqBentSeqThreshold)
+                    {
+                        if (oldestTk.keyCell != null) 
+                            RegisterSamplePoint(oldestTk.keyCell); //Seq + Out + Seq 
+                    }
+                    else if (oldestTk.st == OutlineState.Sequence && lqueue.First().st == OutlineState.InnerBent)
+                    {
+                        RegisterSamplePoint(lqueue.First().keyCell); //Seq + InBent
+                    }
+                    else if (oldestTk.st == OutlineState.InnerBent && lqueue.First().st == OutlineState.Sequence)
+                    {
+                        RegisterSamplePoint(oldestTk.keyCell); //InBent + Seq 
+                    }
+
+                    OutlineTrakerPool.Restore(oldestTk);
+                }
+
                 //向队列添加新的轮廓线追踪状态 
                 OutlineTracker nextTk = OutlineTrakerPool.Get();
                 nextTk.Reinit(aCurSt);
                 nextTk.keyCell = aKeyCell;
-                queue.Enqueue(nextTk);
-
-                if(queue.Count == 4)
-                {   //超出上限需要Dequeue，同时执行必要检测 
-                    var oldestTk = queue.Dequeue();
-                    if (oldestTk.st == OutlineState.Sequence && latestTk.st == OutlineState.Sequence
-                        && queue.Peek().st == OutlineState.OutterBent && 
-                        oldestTk.seqCount >= seqBentSeqThreshold && latestTk.seqCount >= seqBentSeqThreshold)
-                    {
-                        if (oldestTk.keyCell != null) RegisterSamplePoint(oldestTk.keyCell); //需要采样这个点 
-                    }
-                    OutlineTrakerPool.Restore(oldestTk);
-                }
+                lqueue.AddLast(nextTk);
             }
+
             public void Dispose()
             {
                 int y = texHeight - 1;
@@ -409,7 +426,7 @@ namespace Babeltime.Utils
                 return FSM.Error;
 
             aCtx.RegisterHistoryCell(firstCell); //第一个InCell是当次唯一存在的InCell，理应放入History 
-            aCtx.RegisterSamplePoint(firstCell); //第一个Cell一定作为采样点输出 
+            //aCtx.RegisterSamplePoint(firstCell); //第一个Cell一定作为采样点输出 
 
             //标记leftDownCell和其下方2个轮廓点  
             leftDownCell.CrossPointVisited = true;
@@ -493,7 +510,6 @@ namespace Babeltime.Utils
             if (aCtx.WorkingFour[(int)FourDir.LeftDown] != null && aCtx.WorkingFour[(int)FourDir.LeftDown].type == CellType.In)
                 dir = DiagonalDir.LeftDownToRightUp;
 
-
             var incellDir = DiagonalCellLUT[dir][aCtx.lastCrossDir];
             var InCell = aCtx.WorkingFour[(int)incellDir];
             if (InCell == null || InCell.type != CellType.In) { Debug.Log("DiagonalInFour err"); return FSM.Error; }
@@ -506,8 +522,8 @@ namespace Babeltime.Utils
             //更新轮廓线追踪状态(调用内部可能会触发输出采样)
             aCtx.UpdateTracker(OutlineState.InnerBent, InCell); //DiagonalInFour使用InnerBent 
 
-            //内折点需要输出采样(注意此操作需要在更新轮廓线追踪状态之后进行)
-            aCtx.RegisterSamplePoint(InCell);                   //使用InCell输出采样 
+            //内折点需要输出采样(注意此操作需要在更新轮廓线追踪状态之后进行) 
+            //aCtx.RegisterSamplePoint(InCell);                   //使用InCell输出采样 
 
             //注册访问过的Cell
             aCtx.RegisterHistoryCell(InCell);
@@ -548,7 +564,7 @@ namespace Babeltime.Utils
             aCtx.UpdateTracker(OutlineState.InnerBent, InCell); //涉及输出采样点，一律使用InCell 
 
             //内折点需要输出采样(注意此操作需要在更新轮廓线追踪状态之后进行)
-            aCtx.RegisterSamplePoint(InCell);                   //使用InCell输出采样 
+            //aCtx.RegisterSamplePoint(InCell);                   //使用InCell输出采样 
 
             //注册访问过的Cell
             aCtx.RegisterHistoryCell(InCell);

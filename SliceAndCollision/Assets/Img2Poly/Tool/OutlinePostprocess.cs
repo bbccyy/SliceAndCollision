@@ -11,6 +11,39 @@ namespace Babeltime.Utils
     public static class OutlinePostprocess  
     {
 
+        public static void CombineSegmentsV2(in List<Vector3> aInputs, out List<Vector3> aOutput)
+        {
+            aOutput = new List<Vector3>();
+            if (aInputs.Count < 3)
+                return;
+
+            var A = aInputs[0];
+            var B = aInputs[1];
+            var AB = B - A;
+            AB.Normalize();
+            aOutput.Add(A);
+
+            for (int i = 2; i < aInputs.Count; i++)
+            {
+                var C = aInputs[i];
+                var AC = C - A;
+                AC.Normalize();
+                var sina = Vector3.Cross(AB, AC).z; //sina > 0 说明点C在AB的左边，反之亦然 
+                var theta = sina * 180f / Mathf.PI;
+                if (Img2PolyParser.minCombineAngle < theta && theta < Img2PolyParser.maxCombineAngle)  //倾向于允许更多的外折(而拒绝内折) 
+                {
+                    //继续合并
+                    continue;
+                }
+
+                aOutput.Add(aInputs[i - 1]);
+                A = aInputs[i - 1];
+                B = aInputs[i];
+                AB = B - A;
+                AB.Normalize();
+            }
+        }
+
         public static void TryConbineSegments(in List<Vector3> aInput, out List<Vector3> aOutput)
         {
             List<Vector3> loopInputs = aInput;
