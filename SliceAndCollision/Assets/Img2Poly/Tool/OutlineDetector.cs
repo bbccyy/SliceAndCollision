@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using static Babeltime.Utils.OutlineDetector;
 
 namespace Babeltime.Utils
 {
@@ -41,6 +42,12 @@ namespace Babeltime.Utils
             _Ct = 4
         }
 
+        public enum DiagonalDir
+        {
+            LeftDownToRightUp = 0,
+            LeftUpToRightDown = 1,
+        }
+
         public static Array dirArray = Enum.GetValues(typeof(FourDir));
 
         public enum CrossDir  //田字中的十字端点(代表轮廓点方位) 
@@ -73,6 +80,30 @@ namespace Babeltime.Utils
             { FourDir.LeftUp, new Dictionary<CrossDir, CrossDir>(){ { CrossDir.Left, CrossDir.Up }, { CrossDir.Up, CrossDir.Left } } },
             { FourDir.RightUp, new Dictionary<CrossDir, CrossDir>(){ { CrossDir.Up, CrossDir.Right }, { CrossDir.Right, CrossDir.Up } } },
             { FourDir.RightDown, new Dictionary<CrossDir, CrossDir>(){ { CrossDir.Down, CrossDir.Right }, { CrossDir.Right, CrossDir.Down } } },
+        };
+
+        public static Dictionary<DiagonalDir, Dictionary<CrossDir, CrossDir>> DiagonalLUT = new Dictionary<DiagonalDir, Dictionary<CrossDir, CrossDir>>()
+        {
+            {DiagonalDir.LeftDownToRightUp, new Dictionary<CrossDir, CrossDir>()
+            {
+                { CrossDir.Left, CrossDir.Down }, { CrossDir.Down, CrossDir.Left }, { CrossDir.Up, CrossDir.Right }, { CrossDir.Right, CrossDir.Up }
+            } },
+            {DiagonalDir.LeftUpToRightDown, new Dictionary<CrossDir, CrossDir>()
+            {
+                { CrossDir.Left, CrossDir.Up }, { CrossDir.Up, CrossDir.Left }, { CrossDir.Down, CrossDir.Right }, { CrossDir.Right, CrossDir.Down }
+            } }
+        };
+
+        public static Dictionary<DiagonalDir, Dictionary<CrossDir, FourDir>> DiagonalCellLUT = new Dictionary<DiagonalDir, Dictionary<CrossDir, FourDir>>()
+        {
+            {DiagonalDir.LeftDownToRightUp, new Dictionary<CrossDir, FourDir>()
+            {
+                { CrossDir.Left, FourDir.LeftDown }, { CrossDir.Down, FourDir.LeftDown }, { CrossDir.Up, FourDir.RightUp }, { CrossDir.Right, FourDir.RightUp }
+            } },
+            {DiagonalDir.LeftUpToRightDown, new Dictionary<CrossDir, FourDir>()
+            {
+                { CrossDir.Left, FourDir.LeftUp }, { CrossDir.Down, FourDir.RightDown }, { CrossDir.Up, FourDir.LeftUp }, { CrossDir.Right, FourDir.RightDown }
+            } }
         };
 
         //用于在田字区域中只有2个内点时，给定上一个轮廓点，快速查询下一个轮廓点的朝向 
@@ -310,6 +341,7 @@ namespace Babeltime.Utils
             OneInFour,  //若只有1个内点
             TwoInFour,  //若有2个内点
             ThreeInFour,//若有3个内点
+            DiagonalInFour, //若有2个对角内点
             MeetEnd,    //找到终点的逻辑 
             Done,       //用于退出主循环的状态 
             Error,      //迭代次数过多，或者陷入问题后，进入此分支 
@@ -422,9 +454,13 @@ namespace Babeltime.Utils
                 if (aCtx.WorkingFour[(int)dir].type == CellType.In) InList.Add(dir);
             }
 
-            //2个对角内点目前是非法的 
+            
             int InCount = InList.Count;
-            if (InCount == 2 && CrossOppDirLUT[InList[0]] == InList[1]) { Debug.Log("CalFour Error"); return FSM.Error;}
+            if (InCount == 2 && CrossOppDirLUT[InList[0]] == InList[1])
+            {
+                InCount = 4; //处理2个对角内点的情况 
+                aCtx.nextCross.CrossPointVisited = false; 
+            }
 
             //判断跳转状态 
             FSM ret = FSM.Error;
@@ -439,11 +475,44 @@ namespace Babeltime.Utils
                 case 3:
                     ret = FSM.ThreeInFour;
                     break;
+                case 4:
+                    ret = FSM.DiagonalInFour;
+                    break;
                 default:
-                    break; //0 or 4 or more is Invalid -> return Error 
+                    break; //0 or 5 or more is Invalid -> return Error 
             }
 
             return ret;
+        }
+
+        public FSM DiagonalInFour(Context aCtx)
+        {
+            if (aCtx.lastCrossDir == CrossDir.Undifined) { Debug.Log("DiagonalInFour err"); return FSM.Error; }
+
+            DiagonalDir dir = DiagonalDir.LeftUpToRightDown;
+            if (aCtx.WorkingFour[(int)FourDir.LeftDown] != null && aCtx.WorkingFour[(int)FourDir.LeftDown].type == CellType.In)
+                dir = DiagonalDir.LeftDownToRightUp;
+
+
+            var incellDir = DiagonalCellLUT[dir][aCtx.lastCrossDir];
+            var InCell = aCtx.WorkingFour[(int)incellDir];
+            if (InCell == null || InCell.type != CellType.In) { Debug.Log("DiagonalInFour err"); return FSM.Error; }
+
+            var nextDir = DiagonalLUT[dir][aCtx.lastCrossDir];
+
+            //需要重置一下上一轮配置田字格区域的参数 
+            aCtx.UpdateNextWorkingFourParams(nextDir);
+
+            //更新轮廓线追踪状态(调用内部可能会触发输出采样)
+            aCtx.UpdateTracker(OutlineState.InnerBent, InCell); //DiagonalInFour使用InnerBent 
+
+            //内折点需要输出采样(注意此操作需要在更新轮廓线追踪状态之后进行)
+            aCtx.RegisterSamplePoint(InCell);                   //使用InCell输出采样 
+
+            //注册访问过的Cell
+            aCtx.RegisterHistoryCell(InCell);
+
+            return FSM.CalFour;
         }
 
         public FSM OneInFour(Context aCtx)
@@ -626,6 +695,9 @@ namespace Babeltime.Utils
                         break;
                     case FSM.ThreeInFour:
                         currentState = ThreeInFour(ctx);
+                        break;
+                    case FSM.DiagonalInFour:
+                        currentState = DiagonalInFour(ctx);
                         break;
                     case FSM.MeetEnd:
                         currentState = MeetEnd(ctx);

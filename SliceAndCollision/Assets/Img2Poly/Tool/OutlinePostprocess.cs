@@ -192,10 +192,6 @@ namespace Babeltime.Utils
 
         public static void TryTrimIntersectedOutline(List<Vector2> aOutline, out List<Vector2> aTrimed)
         {
-            //[Note]此算法在去除相交内线段时有一处bug，那就是必须要求初始点不在待舍弃范围内，
-            //不然此算法抛弃的是正确范围，保留需要舍弃的范围 
-            //[Todo]可以在发生交错时判断一下丢弃部分占全部数据量的百分比，如果大于50%，则交换丢弃内容 
-
             var shifted = aOutline;
 
             List<Vector2> trimed = new List<Vector2>();
