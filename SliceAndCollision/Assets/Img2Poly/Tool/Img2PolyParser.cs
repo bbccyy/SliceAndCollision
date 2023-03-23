@@ -97,13 +97,10 @@ namespace Babeltime.Utils
             detector.RetriveOutline(out baseOutline);
             //(1.2)边缘合并/优化 
             List<Vector3> refinedOutline = null;
-            
             OutlinePostprocess.TryConbineSegments(baseOutline, out refinedOutline);
-
-            baseOutline = refinedOutline;
+            List<Vector3> baseOutline2 = refinedOutline;
             refinedOutline = null;
-            OutlinePostprocess.CombineSegmentsV2(baseOutline, out refinedOutline);
-
+            OutlinePostprocess.CombineSegmentsV2(baseOutline2, out refinedOutline);
 
             //(2)构建并保存基础Mesh
             //(2.1)基础三角形化 
@@ -145,7 +142,7 @@ namespace Babeltime.Utils
             //(4)拼装prefab 
             PolyMeshBuilder.StoreAssetToPath(refinedOutline, aOutpath, baseMesh.name, outlineMesh.name);
 
-            //datas.Add(tris);
+            //datas.Add(baseOutline);
             //datas.Add(tris2);  //quick show 
             detector.Reset();
         }

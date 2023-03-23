@@ -207,7 +207,7 @@ namespace Babeltime.Utils
             List<Vector2> points = new List<Vector2>();
             foreach(var p in aOutlines)
             {
-                points.Add(new Vector2(p.x, p.y));
+                points.Add(new Vector2(p.x + Img2PolyParser.MeshRoot.x, p.y + Img2PolyParser.MeshRoot.y));
             }
             pc2D.points = points.ToArray();
 

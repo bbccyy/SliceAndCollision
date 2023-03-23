@@ -5,6 +5,7 @@ using UnityEngine;
 using sm = Babeltime.SimpleMath.SimpleMath;
 using EarClipperLib;
 using Haze;
+using System.Linq;
 
 namespace Babeltime.Utils
 {
@@ -26,7 +27,7 @@ namespace Babeltime.Utils
             //这样做的好处是可以处理难以整合的Zigzag形状斜拉线 
             //偏移角度的阈值修正可以基于高斯函数 
 
-            for (int i = 2; i < aInputs.Count; i++)
+            for (int i = 2; i < aInputs.Count; i++) 
             {
                 var C = aInputs[i];
                 var AC = C - A;
@@ -45,6 +46,8 @@ namespace Babeltime.Utils
                 AB = B - A;
                 AB.Normalize();
             }
+
+            aOutput.Add(aInputs.Last());
         }
 
         public static void TryConbineSegments(in List<Vector3> aInput, out List<Vector3> aOutput)

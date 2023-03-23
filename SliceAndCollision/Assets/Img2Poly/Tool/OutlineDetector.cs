@@ -12,8 +12,8 @@ namespace Babeltime.Utils
     {
         public static ObjectPool<Cell> CellPool = new ObjectPool<Cell>(100000);
 
-        public static int seqBentSeqThreshold = 5; //判断是否构成“直线”->“外折”->“直线”的直线长度(像素个数) 
-
+        public static int seqBentSeqThreshold = 2; //判断是否构成“直线”->“外折”->“直线”的直线长度(像素个数) 
+        public static int longSeqThreshold = 3;
         public const int SafeLoopingNum = 100000;
 
         private Context ctx;
@@ -238,7 +238,7 @@ namespace Babeltime.Utils
                 {
                     mTable[aX, aY] = CellPool.Get();
                     var col = texture.GetPixel(aX, aY);
-                    mTable[aX, aY].Reinit(col.a >= 1 ? CellType.In : CellType.Out, aX, aY);
+                    mTable[aX, aY].Reinit(col.a > 0 ? CellType.In : CellType.Out, aX, aY);
                 }
 
                 return mTable[aX, aY];
@@ -282,11 +282,18 @@ namespace Babeltime.Utils
                        oldestTk.seqCount >= seqBentSeqThreshold && latestTk.seqCount >= seqBentSeqThreshold)
                     {
                         if (oldestTk.keyCell != null) 
-                            RegisterSamplePoint(oldestTk.keyCell); //Seq + Out + Seq 
+                            RegisterSamplePoint(oldestTk.keyCell); //Seq(3) + Out + Seq(3) 
                     }
-                    else if (oldestTk.st == OutlineState.Sequence && lqueue.First().st == OutlineState.InnerBent)
+                    else if (oldestTk.st == OutlineState.Sequence && latestTk.st == OutlineState.Sequence
+                       && lqueue.First().st == OutlineState.InnerBent)
                     {
-                        RegisterSamplePoint(lqueue.First().keyCell); //Seq + InBent
+                        if (oldestTk.keyCell != null)
+                            RegisterSamplePoint(lqueue.First().keyCell); //Seq + [In] + Seq 
+                    }
+                    else if (oldestTk.st == OutlineState.Sequence && oldestTk.seqCount >= longSeqThreshold && 
+                        lqueue.First().st == OutlineState.InnerBent)
+                    {
+                        RegisterSamplePoint(lqueue.First().keyCell); //Seq(>=5) + [In] + Any
                     }
                     else if (oldestTk.st == OutlineState.InnerBent && lqueue.First().st == OutlineState.Sequence)
                     {
@@ -377,7 +384,7 @@ namespace Babeltime.Utils
             {
                 for (x = 1; x < aCtx.texWidth; x++)
                 {
-                    if (aCtx.texture.GetPixel(x, y).a >= 1)
+                    if (aCtx.texture.GetPixel(x, y).a > 0)
                     {
                         find = true;
                     }
@@ -393,7 +400,7 @@ namespace Babeltime.Utils
                 find = false;
                 for (x = 0; x < aCtx.texWidth; x++)
                 {
-                    if (aCtx.texture.GetPixel(x, y).a >= 1)
+                    if (aCtx.texture.GetPixel(x, y).a > 0)
                     {
                         find = true;
                         break;
@@ -405,7 +412,7 @@ namespace Babeltime.Utils
 
             for (x = 0; x < aCtx.texWidth; x++)
             {
-                if (aCtx.texture.GetPixel(x, y).a >= 1)
+                if (aCtx.texture.GetPixel(x, y).a > 0)
                 {
                     //find and init first cell 
                     aCtx.nextCross = aCtx.GetOrInitCellAt(x - 1, y); //第一个内部点的左边的点(其右上角对应田字中心) 
@@ -456,7 +463,7 @@ namespace Babeltime.Utils
             }
 
             //标记当前的田字中心点为“访问过”状态 
-            aCtx.nextCross.CrossPointVisited = true;
+            aCtx.nextCross.CrossPointVisited = true;  //662  (1500 - 1 - 920 = 579)
 
             //填充田字一共4个cell，左下角cell同时对应十字中心轮廓点 
             var curCrossCenter = aCtx.nextCross;
@@ -668,6 +675,10 @@ namespace Babeltime.Utils
 
         public FSM MeetEnd(Context aCtx)
         {
+            aCtx.UpdateTracker(OutlineState.OutterBent, null);
+            aCtx.UpdateTracker(OutlineState.OutterBent, null); 
+            aCtx.UpdateTracker(OutlineState.OutterBent, null); //迫使Tracker中的采样点都输出 
+
             foreach (var cell in aCtx.SamplePoint)
             {
                 Vector3 curPos = new Vector3(

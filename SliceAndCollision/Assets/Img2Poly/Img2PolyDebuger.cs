@@ -29,8 +29,8 @@ namespace Babeltime.Utils
                     var col = ColLut[i % ColLut.Length];
                     var data = datas.ElementAt(i);
 
-                    //DrawLine(data);
-                    DrawTris(data, col);
+                    DrawLine(data);
+                    //DrawTris(data, col);
                 }
             }
 
