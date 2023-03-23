@@ -79,7 +79,8 @@ namespace Babeltime.Utils
             }
             aOutput = new List<Vector3>();
             bool hasChg = false;
-            for (int i = aOffset; i < aInput.Count - 2; i += 3)
+            int i = aOffset;
+            for (; i < aInput.Count - 2; i += 3)
             {
                 var segA = aInput[i + 1] - aInput[i];
                 var segB = aInput[i + 2] - aInput[i+1];
@@ -96,6 +97,10 @@ namespace Babeltime.Utils
                     aOutput.Add(aInput[i+1]);
                     aOutput.Add(aInput[i+2]);
                 }
+            }
+            for (; i < aInput.Count; i++)
+            {
+                aOutput.Add(aInput[i]);
             }
             return hasChg;
         }

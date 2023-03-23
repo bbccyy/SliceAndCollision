@@ -142,7 +142,7 @@ namespace Babeltime.Utils
             //(4)ƴװprefab 
             PolyMeshBuilder.StoreAssetToPath(refinedOutline, aOutpath, baseMesh.name, outlineMesh.name);
 
-            //datas.Add(baseOutline);
+            datas.Add(baseOutline);
             //datas.Add(tris2);  //quick show 
             detector.Reset();
         }
