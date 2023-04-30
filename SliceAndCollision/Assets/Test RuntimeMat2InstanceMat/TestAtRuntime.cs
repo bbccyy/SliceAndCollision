@@ -6,9 +6,9 @@ using UnityEngine;
 public class TestAtRuntime : MonoBehaviour
 {
 
-    private GameObject go;
-    private GameObject igo1;
-    private GameObject igo2;
+    private GameObject go; 
+    private GameObject igo1; 
+    private GameObject igo2; 
 
     int ct = 1200;
 
