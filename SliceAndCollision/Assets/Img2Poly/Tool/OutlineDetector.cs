@@ -288,7 +288,7 @@ namespace Babeltime.Utils
                        && lqueue.First().st == OutlineState.InnerBent)
                     {
                         if (oldestTk.keyCell != null)
-                            RegisterSamplePoint(lqueue.First().keyCell); //Seq + [In] + Seq 
+                            RegisterSamplePoint(lqueue.First().keyCell); //Seq + [In] + Seq  
                     }
                     else if (oldestTk.st == OutlineState.Sequence && oldestTk.seqCount >= longSeqThreshold && 
                         lqueue.First().st == OutlineState.InnerBent)
