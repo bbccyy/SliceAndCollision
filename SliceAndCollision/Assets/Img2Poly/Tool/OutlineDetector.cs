@@ -268,7 +268,7 @@ namespace Babeltime.Utils
                 if (latestTk.st == OutlineState.Sequence && aCurSt == OutlineState.Sequence)
                 {   //合并连续序列
                     latestTk.keyCell = aKeyCell;
-                    latestTk.seqCount++;
+                    latestTk.seqCount++; 
                     return;
                 }
 
